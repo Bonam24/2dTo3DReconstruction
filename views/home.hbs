@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D to 3D Reconstruction</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome for icons (for elegant buttons) -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <style>
+    body {
+        background-color: #f1f1f1;
+        font-family: 'Arial', sans-serif;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh; /* Ensure the footer stays at the bottom */
+        justify-content: center; /* Center content vertically */
+        align-items: center; /* Center content horizontally */
+        margin: 0;
+    }
+
+    h1 {
+        color: #A41034; /* MIT Red */
+        font-weight: bold;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+    }
+
+    .container {
+        max-width: 900px;
+        margin: 0 auto;
+        flex: 1; /* Ensure the main content takes available space */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    /* Header styling */
+    .header {
+        background: linear-gradient(to right, #A41034, #86072d); /* MIT Red gradient */
+        color: white;
+        padding: 1px;
+        text-align: center;
+        width: 100%; /* Ensure header extends across the full page width */
+        position: fixed; /* Keep it at the top */
+        top: 0;
+        left: 0;
+        z-index: 10; /* Ensure it stays on top */
+    }
+
+    .form-container {
+        margin-top: 60px; /* Reduced space between form and canvas */
+        padding: 10px;
+        width: 100%;
+        background-color: white;
+        border-radius: 15px;
+        box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+    }
+
+    .form-container:hover {
+        transform: scale(1.05);
+    }
+
+    textarea {
+        width: 100%;
+        height: 100px;
+        border-radius: 10px;
+        border: 1px solid #ddd;
+        padding: 10px;
+    }
+
+    button {
+        background-color: #A41034; /* MIT Red */
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+        background-color: #86072d; /* Darker MIT Red */
+    }
+
+    #threeCanvas {
+        margin-top: 1em; /* Reduced space between form and canvas */
+        width: 30em; /* Increased width to 30em */
+        height: 25em; /* Keep height as 25em */
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        background-color: #ffffff;
+        margin-left: auto;
+        margin-right: auto; /* Center align the canvas */
+        display: block; /* Ensure it behaves as a block element */
+        overflow: visible; /* Allow canvas to display fully */
+    }
+
+    .btn {
+        transition: transform 0.3s ease;
+    }
+
+    .btn:active {
+        transform: scale(0.98);
+    }
+
+    .hold {
+        max-width: 30em;
+    }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <!-- Header Section -->
+    <header class="header">
+        <h1 class="text-white">2D to 3D Reconstruction</h1>
+    </header>
+
+    <!-- Main Content Section -->
+    <div class="container">
+        <!-- Form Section -->
+        <div class="form-container">
+            <form id="pointsForm">
+                <div class="form-group">
+                    <label for="pointsInput" class="font-weight-bold">Enter 2D Points (as JSON):</label>
+                    <textarea id="pointsInput" class="form-control" placeholder='Example: [[0,0], [1,1], [2,2], [3,1], [2,0]]'></textarea>
+                </div>
+                <button type="submit" class="btn btn-lg btn-block">Generate 3D <i class="fas fa-cogs"></i></button>
+            </form>
+        </div>
+
+        <!-- Three.js Canvas -->
+        <div id="threeCanvas"></div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <!-- Custom JS -->
+    <script >
+        document.addEventListener("DOMContentLoaded", function () {
+            let scene, camera, renderer;
+
+            function initScene() {
+                scene = new THREE.Scene();
+
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.set(0, 0, 5); // Move camera back and center
+
+                renderer = new THREE.WebGLRenderer();
+                renderer.setSize(30 * 16, 25 * 16); // Convert em to pixels (30em = 480px, 25em = 400px)
+                document.getElementById("threeCanvas").appendChild(renderer.domElement);
+
+                animate();
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+
+            document.getElementById("pointsForm").addEventListener("submit", async (e) => {
+                e.preventDefault();
+
+                const pointsInput = document.getElementById("pointsInput").value;
+                let points;
+
+                try {
+                    points = JSON.parse(pointsInput);
+                } catch (error) {
+                    console.error("Invalid JSON format:", error);
+                    alert("Please enter valid JSON formatted 2D points.");
+                    return;
+                }
+
+                const res = await fetch("/generate-mesh", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `points=${JSON.stringify(points)}`
+                });
+
+                const responseJson = await res.json();
+
+                if (!responseJson.points || !Array.isArray(responseJson.triangles)) {
+                    console.error("Invalid response:", responseJson);
+                    alert("Failed to generate mesh. Check console for errors.");
+                    return;
+                }
+
+                renderMesh(responseJson.points, responseJson.triangles);
+            });
+
+            function renderMesh(points, triangles) {
+                if (!scene) {
+                    console.error("Scene is not initialized!");
+                    return;
+                }
+
+                const geometry = new THREE.BufferGeometry();
+                const vertices = [];
+
+                for (let i = 0; i < triangles.length; i += 3) {
+                    vertices.push(
+                        points[triangles[i]][0], points[triangles[i]][1], 0,
+                        points[triangles[i + 1]][0], points[triangles[i + 1]][1], 0,
+                        points[triangles[i + 2]][0], points[triangles[i + 2]][1], 0
+                    );
+                }
+
+                geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+                const mesh = new THREE.Mesh(geometry, material);
+
+                scene.add(mesh);
+                // Adjust the camera to ensure the mesh is always centered
+                camera.position.z = 5;
+                camera.position.y = Math.max(...vertices.filter((_, idx) => idx % 3 === 1)) * 0.5;  // Center based on mesh height
+            }
+
+            initScene();
+        });
+    </script>
+</body>
+</html>
