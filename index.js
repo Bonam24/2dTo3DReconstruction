@@ -1,13 +1,15 @@
 // new code 
 const express = require("express");
 const path = require("path");
-
+const bodyParser = require('body-parser');
+const PORT = process.env.PORT || 3000;
 const app = express();
 
 const Delaunator = require("delaunator");
 
 
-app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.json());  // For parsing application/json
+app.use(bodyParser.urlencoded({ extended: true })); 
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'hbs');
 app.use(express.static('public'));
@@ -43,7 +45,7 @@ app.post("/generate-mesh", (req, res) => {
 
 
 
-const PORT = process.env.PORT || 3000;
+
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
